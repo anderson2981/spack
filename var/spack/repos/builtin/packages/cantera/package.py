@@ -33,22 +33,36 @@ class Cantera(SConsPackage):
     homepage = "http://www.cantera.org/docs/sphinx/html/index.html"
     url      = "https://github.com/Cantera/cantera/archive/v2.3.0.tar.gz"
 
-    version('2.3.0', 'aebbd8d891cb1623604245398502b72e')
-    version('2.2.1', '9d1919bdef39ddec54485fc8a741a3aa')
+    version('2.3.0', 'ac28736956a3f0b9cfd53bb15206a7bf0fb15ae6')
+    version('2.2.1', 'a4894df37f8d262fd9267fba3736e64952fc5392')
 
     variant('python',     default=False,
             description='Build the Cantera Python module')
     variant('matlab',     default=False,
             description='Build the Cantera Matlab toolbox')
+    # Cantera comes with internal support for sundials, blas, and lapack
+    # provide variants that allow users to build their own
+    variant('sundials',   default=True,
+            description='Build with external sundials support')
+    variant('blas_lapack', default=False,
+            description='build with external blas and lapack support')
 
     # Required dependencies
     depends_on('fmt@3.0.0:3.0.2', when='@2.3.0:')
     depends_on('googletest',      when='@2.3.0:')
-    depends_on('eigen',           when='@2.3.0:')
-    depends_on('boost')
-    depends_on('sundials')  # must be compiled with -fPIC
-    depends_on('blas')
-    depends_on('lapack')
+    depends_on('eigen@3.0.1:',    when='@2.3.0:')
+    depends_on('boost',           when='@2.3.0:')
+    #depends_on('sundials@2.4:2.7 +int64')  # must be compiled with -fPIC
+
+    # sundials
+    #extends('sundials', when='+')
+    depends_on('sundials@2.6.2:2.7.0 +int64', when='+sundials')  # must be compiled with -fPIC
+    depends_on('sundials@2.6.2:2.7.0 +int64', when='@2.3.0')  # must be compiled with -fPIC
+    depends_on('sundials@2.6.2:2.7.0 +int64 +lapack', when='+sundials+blas_lapack')  # must be compiled with -fPIC
+
+    #extends('blas_lapack', when='+blas_lapack')
+    depends_on('blas', when='+blas_lapack')
+    depends_on('lapack', when='+blas_lapack')
 
     # Python module dependencies
     extends('python', when='+python')
@@ -100,37 +114,40 @@ class Cantera(SConsPackage):
             ])
 
         # BLAS/LAPACK support
-        lapack_blas = spec['lapack'].libs + spec['blas'].libs
-        args.extend([
-            'blas_lapack_libs={0}'.format(','.join(lapack_blas.names)),
-            'blas_lapack_dir={0}'.format(spec['lapack'].prefix.lib)
-        ])
+        if '+blas_lapack' in spec:
+          lapack_blas = spec['lapack'].libs + spec['blas'].libs
+          args.extend([
+              'blas_lapack_libs={0}'.format(','.join(lapack_blas.names)),
+              'blas_lapack_dir={0}'.format(spec['lapack'].prefix.lib)
+          ])
 
         # Boost support
         if spec.satisfies('@2.3.0:'):
             args.append('boost_inc_dir={0}'.format(
                 spec['boost'].prefix.include))
-        else:
-            args.extend([
-                'build_thread_safe=yes',
-                'boost_inc_dir={0}'.format(spec['boost'].prefix.include),
-                'boost_lib_dir={0}'.format(spec['boost'].prefix.lib),
-            ])
+        #else:
+            #args.extend([
+                #'build_thread_safe=yes',
+                #'boost_inc_dir={0}'.format(spec['boost'].prefix.include),
+                #'boost_lib_dir={0}'.format(spec['boost'].prefix.lib),
+            #])
 
-        # Sundials support
-        if spec.satisfies('@2.3.0:'):
-            args.append('system_sundials=y')
-        else:
-            args.extend([
-                'use_sundials=y',
-                'sundials_license={0}'.format(
-                    spec['sundials'].prefix.LICENSE)
-            ])
 
-        args.extend([
-            'sundials_include={0}'.format(spec['sundials'].prefix.include),
-            'sundials_libdir={0}'.format(spec['sundials'].prefix.lib),
-        ])
+        # Sundials
+        if '+sundials' in spec:
+            if spec.satisfies('@2.3.0:'):
+                args.append('system_sundials=y')
+            else:
+                args.extend([
+                    'use_sundials=y',
+                    'sundials_license={0}'.format(
+                        spec['sundials'].prefix.LICENSE)
+                ])
+    
+            args.extend([
+                'sundials_include={0}'.format(spec['sundials'].prefix.include),
+                'sundials_libdir={0}'.format(spec['sundials'].prefix.lib),
+            ])
 
         # Python module
         if '+python' in spec:
